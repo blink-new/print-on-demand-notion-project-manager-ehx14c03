@@ -10,30 +10,32 @@ export interface Project {
   userId: string
   title: string
   description?: string
-  status: 'active' | 'archived' | 'completed'
+  status: 'active' | 'archived' | 'completed' | 'on-hold'
+  priority: 'low' | 'medium' | 'high'
   createdAt: string
   updatedAt: string
   coverImage?: string
   icon?: string
-  color: string
+  color?: string
 }
 
-export interface ProjectPage {
+export interface Page {
   id: string
-  projectId: string
+  projectId?: string
   userId: string
   title: string
   content: string
   pageType: 'page' | 'database' | 'gallery'
   parentPageId?: string
   position: number
+  isMainPage: boolean
   createdAt: string
   updatedAt: string
 }
 
 export interface Database {
   id: string
-  projectId: string
+  projectId?: string
   userId: string
   name: string
   description?: string
@@ -106,7 +108,7 @@ export interface Task {
   userId: string
   title: string
   description?: string
-  status: 'todo' | 'in-progress' | 'completed'
+  status: 'todo' | 'inProgress' | 'completed'
   priority: 'low' | 'medium' | 'high'
   dueDate?: string
   assignedTo?: string
@@ -123,4 +125,74 @@ export interface Note {
   tags: string[]
   createdAt: string
   updatedAt: string
+}
+
+export interface Asset {
+  id: string
+  userId: string
+  originalName: string
+  url: string
+  type: string
+  size: number
+  projectId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Block types for the page editor
+export interface Block {
+  id: string
+  type: 'text' | 'heading' | 'image' | 'database' | 'gallery' | 'embed' | 'divider'
+  content: any
+  position: number
+}
+
+export interface TextBlock extends Block {
+  type: 'text'
+  content: {
+    text: string
+    format?: 'paragraph' | 'quote' | 'code'
+  }
+}
+
+export interface HeadingBlock extends Block {
+  type: 'heading'
+  content: {
+    text: string
+    level: 1 | 2 | 3
+  }
+}
+
+export interface ImageBlock extends Block {
+  type: 'image'
+  content: {
+    url: string
+    caption?: string
+    alt?: string
+  }
+}
+
+export interface DatabaseBlock extends Block {
+  type: 'database'
+  content: {
+    databaseId: string
+    viewType: 'table' | 'list' | 'page'
+  }
+}
+
+export interface GalleryBlock extends Block {
+  type: 'gallery'
+  content: {
+    assets: string[] // asset IDs
+    layout: 'grid' | 'masonry'
+  }
+}
+
+export interface EmbedBlock extends Block {
+  type: 'embed'
+  content: {
+    url: string
+    title?: string
+    description?: string
+  }
 }

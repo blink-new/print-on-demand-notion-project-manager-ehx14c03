@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { Dashboard } from '@/pages/Dashboard'
 import Projects from '@/pages/Projects'
 import AssetLibrary from '@/pages/AssetLibrary'
+import { ProjectPage } from '@/pages/ProjectPage'
 import { blink } from '@/blink/client'
 import type { User } from '@/types'
 
@@ -55,6 +56,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:projectId" element={<ProjectPage />} />
           <Route path="/assets" element={<AssetLibrary />} />
           <Route path="/tasks" element={<div>Tasks Page - Coming Soon</div>} />
           <Route path="/notes" element={<div>Notes Page - Coming Soon</div>} />
