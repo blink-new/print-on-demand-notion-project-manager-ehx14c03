@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Type, Heading1, Heading2, Heading3, Image, Database, Grid, Link, Minus } from 'lucide-react'
+import { Plus, Type, Heading1, Heading2, Heading3, Image, Database, Grid, Link, Minus, Quote, Code, Video, FileText, Columns, AlignLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { blink } from '@/blink/client'
-import type { Page, Block, TextBlock, HeadingBlock, ImageBlock } from '@/types'
+import type { Page, Block, TextBlock, HeadingBlock, ImageBlock, Database } from '@/types'
 
 interface PageEditorProps {
   page: Page
@@ -19,22 +20,53 @@ export function PageEditor({ page, onSave, onTitleChange }: PageEditorProps) {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(page.title)
+  const [databases, setDatabases] = useState<Database[]>([])
+  const [assets, setAssets] = useState<any[]>([])
 
-  // Parse content into blocks
+  // Load page data and related resources
   useEffect(() => {
-    try {
-      const parsedBlocks = page.content ? JSON.parse(page.content) : []
-      setBlocks(Array.isArray(parsedBlocks) ? parsedBlocks : [])
-    } catch (error) {
-      // If content is markdown/text, create a single text block
-      setBlocks([{
-        id: 'block-1',
-        type: 'text',
-        content: { text: page.content || '', format: 'paragraph' },
-        position: 0
-      }])
+    const loadPageData = async () => {
+      try {
+        // Parse content into blocks
+        const parsedBlocks = page.content ? JSON.parse(page.content) : []
+        setBlocks(Array.isArray(parsedBlocks) ? parsedBlocks : [])
+        
+        // Load databases for this project
+        if (page.projectId) {
+          const user = await blink.auth.me()
+          const databasesData = await blink.db.databases.list({
+            where: { projectId: page.projectId, userId: user.id }
+          })
+          
+          const parsedDatabases = databasesData.map(db => ({
+            ...db,
+            properties: typeof db.properties === 'string' ? JSON.parse(db.properties) : db.properties
+          }))
+          
+          setDatabases(parsedDatabases)
+          
+          // Load project assets
+          const assetsData = await blink.db.assets.list({
+            where: { projectId: page.projectId, userId: user.id },
+            orderBy: { createdAt: 'desc' },
+            limit: 20
+          })
+          setAssets(assetsData)
+        }
+      } catch (error) {
+        console.error('Failed to load page data:', error)
+        // If content is markdown/text, create a single text block
+        setBlocks([{
+          id: 'block-1',
+          type: 'text',
+          content: { text: page.content || '', format: 'paragraph' },
+          position: 0
+        }])
+      }
     }
-  }, [page.content])
+    
+    loadPageData()
+  }, [page.content, page.projectId])
 
   const getDefaultContent = (type: Block['type']) => {
     switch (type) {
@@ -271,9 +303,11 @@ function BlockRenderer({
           <Separator className="my-4" />
         )}
         {block.type === 'database' && (
-          <Card className="p-4">
-            <p className="text-muted-foreground">Database block - Coming soon</p>
-          </Card>
+          <DatabaseBlockEditor
+            block={block as any}
+            databases={databases}
+            onUpdate={onUpdate}
+          />
         )}
         {block.type === 'gallery' && (
           <Card className="p-4">
@@ -501,6 +535,152 @@ function AddBlockButton({ onAddBlock }: { onAddBlock: (type: Block['type']) => v
         </div>
       )}
     </div>
+  )
+}
+
+function DatabaseBlockEditor({ block, databases, onUpdate }: { 
+  block: any; 
+  databases: Database[]; 
+  onUpdate: (content: any) => void 
+}) {
+  const [entries, setEntries] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  
+  const selectedDatabase = databases.find(db => db.id === block.content.databaseId)
+  
+  useEffect(() => {
+    const loadEntries = async () => {
+      if (!selectedDatabase) return
+      
+      try {
+        setLoading(true)
+        const entriesData = await blink.db.databaseEntries.list({
+          where: { databaseId: selectedDatabase.id },
+          orderBy: { createdAt: 'desc' },
+          limit: 5
+        })
+        
+        const parsedEntries = entriesData.map(entry => ({
+          ...entry,
+          data: typeof entry.data === 'string' ? JSON.parse(entry.data) : entry.data
+        }))
+        
+        setEntries(parsedEntries)
+      } catch (error) {
+        console.error('Failed to load database entries:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadEntries()
+  }, [selectedDatabase])
+  
+  if (!block.content.databaseId) {
+    return (
+      <Card className="p-4">
+        <CardHeader className="p-0 pb-4">
+          <CardTitle className="text-base">Select Database</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {databases.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No databases available in this project</p>
+          ) : (
+            <Select
+              value=""
+              onValueChange={(databaseId) => onUpdate({ ...block.content, databaseId })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a database..." />
+              </SelectTrigger>
+              <SelectContent>
+                {databases.map((db) => (
+                  <SelectItem key={db.id} value={db.id}>
+                    {db.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+  
+  if (!selectedDatabase) {
+    return (
+      <Card className="p-4">
+        <p className="text-muted-foreground">Database not found</p>
+      </Card>
+    )
+  }
+  
+  return (
+    <Card className="p-4">
+      <CardHeader className="p-0 pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{selectedDatabase.name}</CardTitle>
+          <div className="flex items-center gap-2">
+            <Select
+              value={block.content.viewType || 'table'}
+              onValueChange={(viewType) => onUpdate({ ...block.content, viewType })}
+            >
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="table">Table</SelectItem>
+                <SelectItem value="list">List</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onUpdate({ ...block.content, databaseId: '' })}
+            >
+              Change
+            </Button>
+          </div>
+        </div>
+        {selectedDatabase.description && (
+          <p className="text-sm text-muted-foreground">{selectedDatabase.description}</p>
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="text-center py-8">
+            <Database className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">No entries in this database</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {entries.map((entry) => (
+              <div key={entry.id} className="border rounded p-3 hover:bg-muted/50">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {selectedDatabase.properties.slice(0, 4).map((property) => (
+                    <div key={property.id}>
+                      <span className="font-medium text-muted-foreground">{property.name}:</span>{' '}
+                      <span>{entry.data[property.name] || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {entries.length >= 5 && (
+              <div className="text-center pt-2">
+                <Badge variant="secondary" className="text-xs">
+                  Showing first 5 entries
+                </Badge>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

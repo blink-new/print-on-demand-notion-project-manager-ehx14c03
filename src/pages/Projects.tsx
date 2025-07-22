@@ -126,7 +126,8 @@ const Projects: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <Layout title="Projects" subtitle="Manage your print-on-demand design projects">
+      <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -341,7 +342,8 @@ const Projects: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   )
 }
 

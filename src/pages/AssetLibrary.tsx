@@ -10,12 +10,22 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Layout } from '@/components/layout/Layout'
 import { blink } from '@/blink/client'
-import type { Asset, Album, Folder } from '@/types'
+import type { Asset, AssetAlbum } from '@/types'
+
+interface Folder {
+  id: string
+  userId: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+}
 
 const AssetLibrary: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([])
-  const [albums, setAlbums] = useState<Album[]>([])
+  const [albums, setAlbums] = useState<AssetAlbum[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -53,7 +63,7 @@ const AssetLibrary: React.FC = () => {
 
   const loadAlbums = useCallback(async () => {
     try {
-      const albumsData = await blink.db.albums.list({
+      const albumsData = await blink.db.assetAlbums.list({
         where: { userId: user?.id },
         orderBy: { createdAt: 'desc' }
       })
@@ -113,11 +123,10 @@ const AssetLibrary: React.FC = () => {
 
         // Save asset metadata to database
         await blink.db.assets.create({
-          filename: file.name,
           originalName: file.name,
-          mimeType: file.type,
-          size: file.size,
           url: publicUrl,
+          type: file.type,
+          size: file.size,
           userId: user.id,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -138,7 +147,7 @@ const AssetLibrary: React.FC = () => {
     if (!newAlbum.name.trim() || !user) return
 
     try {
-      await blink.db.albums.create({
+      await blink.db.assetAlbums.create({
         name: newAlbum.name,
         description: newAlbum.description,
         userId: user.id,
@@ -154,26 +163,25 @@ const AssetLibrary: React.FC = () => {
     }
   }
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return <Image className="w-4 h-4" />
-    if (mimeType.startsWith('video/')) return <Video className="w-4 h-4" />
+  const getFileIcon = (type: string) => {
+    if (type.startsWith('image/')) return <Image className="w-4 h-4" />
+    if (type.startsWith('video/')) return <Video className="w-4 h-4" />
     return <FileText className="w-4 h-4" />
   }
 
-  const getFileTypeColor = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return 'bg-green-100 text-green-800'
-    if (mimeType.startsWith('video/')) return 'bg-blue-100 text-blue-800'
+  const getFileTypeColor = (type: string) => {
+    if (type.startsWith('image/')) return 'bg-green-100 text-green-800'
+    if (type.startsWith('video/')) return 'bg-blue-100 text-blue-800'
     return 'bg-gray-100 text-gray-800'
   }
 
   const filteredAssets = assets.filter(asset => {
-    const matchesSearch = asset.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         asset.originalName.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = asset.originalName.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesFilter = selectedFilter === 'all' ||
-                         (selectedFilter === 'images' && asset.mimeType.startsWith('image/')) ||
-                         (selectedFilter === 'videos' && asset.mimeType.startsWith('video/')) ||
-                         (selectedFilter === 'documents' && !asset.mimeType.startsWith('image/') && !asset.mimeType.startsWith('video/'))
+                         (selectedFilter === 'images' && asset.type.startsWith('image/')) ||
+                         (selectedFilter === 'videos' && asset.type.startsWith('video/')) ||
+                         (selectedFilter === 'documents' && !asset.type.startsWith('image/') && !asset.type.startsWith('video/'))
     
     return matchesSearch && matchesFilter
   })
@@ -198,13 +206,14 @@ const AssetLibrary: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Asset Library</h1>
-          <p className="text-gray-600">Organize and manage your design assets</p>
-        </div>
+    <Layout title="Asset Library" subtitle="Organize and manage your design assets">
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Asset Library</h1>
+            <p className="text-gray-600">Organize and manage your design assets</p>
+          </div>
         
         <div className="flex items-center space-x-2">
           <Dialog open={isCreateAlbumOpen} onOpenChange={setIsCreateAlbumOpen}>
@@ -351,7 +360,7 @@ const AssetLibrary: React.FC = () => {
                     {viewMode === 'grid' ? (
                       <>
                         <div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                          {asset.mimeType.startsWith('image/') ? (
+                          {asset.type.startsWith('image/') ? (
                             <img
                               src={asset.url}
                               alt={asset.originalName}
@@ -359,7 +368,7 @@ const AssetLibrary: React.FC = () => {
                             />
                           ) : (
                             <div className="text-gray-400">
-                              {getFileIcon(asset.mimeType)}
+                              {getFileIcon(asset.type)}
                             </div>
                           )}
                         </div>
@@ -368,8 +377,8 @@ const AssetLibrary: React.FC = () => {
                             {asset.originalName}
                           </p>
                           <div className="flex items-center justify-between">
-                            <Badge className={getFileTypeColor(asset.mimeType)} variant="secondary">
-                              {asset.mimeType.split('/')[0]}
+                            <Badge className={getFileTypeColor(asset.type)} variant="secondary">
+                              {asset.type.split('/')[0]}
                             </Badge>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -405,21 +414,21 @@ const AssetLibrary: React.FC = () => {
                     ) : (
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                          {asset.mimeType.startsWith('image/') ? (
+                          {asset.type.startsWith('image/') ? (
                             <img
                               src={asset.url}
                               alt={asset.originalName}
                               className="w-full h-full object-cover rounded-lg"
                             />
                           ) : (
-                            getFileIcon(asset.mimeType)
+                            getFileIcon(asset.type)
                           )}
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">{asset.originalName}</p>
                           <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <Badge className={getFileTypeColor(asset.mimeType)} variant="secondary">
-                              {asset.mimeType.split('/')[0]}
+                            <Badge className={getFileTypeColor(asset.type)} variant="secondary">
+                              {asset.type.split('/')[0]}
                             </Badge>
                             <span>{formatFileSize(asset.size)}</span>
                             <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
@@ -551,7 +560,8 @@ const AssetLibrary: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </Layout>
   )
 }
 
